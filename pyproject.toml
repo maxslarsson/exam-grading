@@ -1,0 +1,25 @@
+[project]
+name = "2025-exam-grading-presentation"
+version = "0.1.0"
+description = "2025 Kyle and Paul Faculty Presentation on Exam Grading"
+authors = [
+    {name = "Max Larsson",email = "maxslarsson@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "qreader (>=3.16,<4.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "opencv-python (>=4.11.0.86,<5.0.0.0)",
+    "pillow (>=11.2.1,<12.0.0)"
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.15.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
