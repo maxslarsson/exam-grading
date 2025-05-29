@@ -28,10 +28,12 @@ def print_menu():
 
 def main():
     """Main menu for exam grading functions."""
-    
     while True:
         print_menu()
-        choice = input("\nEnter your choice (0-8): ").strip()
+        try:
+            choice = input("\nEnter your choice (0-8): ").strip()
+        except KeyboardInterrupt:
+            sys.exit(0)
         
         if choice == "0":
             print("Goodbye!")
@@ -59,7 +61,11 @@ def main():
 def run_read_qr_codes():
     """Run the read QR codes function."""
     print("\n--- Read QR codes and move images ---")
-    scans_folder = input("Enter path to scans folder: ").strip()
+
+    try:
+        scans_folder = input("Enter path to scans folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         output_folder = read_qr_codes_and_move(scans_folder)
@@ -71,9 +77,13 @@ def run_read_qr_codes():
 def run_omr_function():
     """Run the OMR function."""
     print("\n--- Run OMR on images ---")
-    marker_path = input("Enter path to OMR marker image (omr_marker.jpg): ").strip()
-    bubbles_csv = input("Enter path to bubbles CSV file: ").strip()
-    parsed_folder = input("Enter path to parsed folder: ").strip()
+
+    try:
+        marker_path = input("Enter path to OMR marker image (omr_marker.jpg): ").strip()
+        bubbles_csv = input("Enter path to bubbles CSV file: ").strip()
+        parsed_folder = input("Enter path to parsed folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         output_folder = run_omr(marker_path, bubbles_csv, parsed_folder)
@@ -85,7 +95,11 @@ def run_omr_function():
 def run_upload_pdfs():
     """Run the upload PDFs to AWS function."""
     print("\n--- Upload PDFs to AWS ---")
-    parsed_folder = input("Enter path to parsed OMR folder: ").strip()
+    
+    try:
+        parsed_folder = input("Enter path to parsed OMR folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         upload_pdfs_to_aws(parsed_folder)
@@ -97,11 +111,16 @@ def run_upload_pdfs():
 def run_create_everything_job():
     """Run the create everything job function."""
     print("\n--- Create everything job ---")
-    bubbles_csv = input("Enter path to bubbles CSV file: ").strip()
-    answers_csv = input("Enter path to consolidated answers CSV file: ").strip()
     
     try:
-        output_file = create_everything_job(bubbles_csv, answers_csv)
+        bubbles_csv = input("Enter path to bubbles CSV file: ").strip()
+        answers_csv = input("Enter path to consolidated answers CSV file: ").strip()
+        questiondb_path = input("Enter path to questiondb.json: ").strip()
+    except KeyboardInterrupt:
+        return
+    
+    try:
+        output_file = create_everything_job(bubbles_csv, answers_csv, questiondb_path)
         print(f"Success! Created: {output_file}")
     except Exception as e:
         print(f"Error: {e}")
@@ -110,7 +129,11 @@ def run_create_everything_job():
 def run_upload_jobs():
     """Run the upload jobs to prprpr function."""
     print("\n--- Upload jobs to prprpr ---")
-    csv_folder = input("Enter path to CSV jobs folder: ").strip()
+    
+    try:
+        csv_folder = input("Enter path to CSV jobs folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         upload_jobs_to_prprpr(csv_folder)
@@ -122,7 +145,11 @@ def run_upload_jobs():
 def run_download_jobs():
     """Run the download jobs from prprpr function."""
     print("\n--- Download jobs from prprpr ---")
-    output_folder = input("Enter path to output folder: ").strip()
+
+    try:
+        output_folder = input("Enter path to output folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         download_jobs_from_prprpr(output_folder)
@@ -134,7 +161,11 @@ def run_download_jobs():
 def run_get_annotated_pdfs():
     """Run the get annotated PDFs from AWS function."""
     print("\n--- Get annotated PDFs from AWS ---")
-    destination_folder = input("Enter path to destination folder: ").strip()
+    
+    try:
+        destination_folder = input("Enter path to destination folder: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         get_annotated_pdfs_from_aws(destination_folder)
@@ -146,10 +177,14 @@ def run_get_annotated_pdfs():
 def run_create_spreadsheet():
     """Run the create grading spreadsheet function."""
     print("\n--- Create grading spreadsheet ---")
-    ps_csv = input("Enter path to problem set CSV: ").strip()
-    students_csv = input("Enter path to students CSV: ").strip()
-    individual_csv = input("Enter path to individual answers CSV: ").strip()
-    team_csv = input("Enter path to learning team answers CSV: ").strip()
+
+    try:
+        ps_csv = input("Enter path to problem set CSV: ").strip()
+        students_csv = input("Enter path to students CSV: ").strip()
+        individual_csv = input("Enter path to individual answers CSV: ").strip()
+        team_csv = input("Enter path to learning team answers CSV: ").strip()
+    except KeyboardInterrupt:
+        return
     
     try:
         url = create_grading_spreadsheet(ps_csv, students_csv, individual_csv, team_csv)
