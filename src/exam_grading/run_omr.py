@@ -77,13 +77,65 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
     if image_files:
         print(f"\nProcessing {len(image_files)} images in {directory}")
         results_df = pd.DataFrame()
-        overlay_images = {}  # Store overlays for this page
         
+        # Group files by student_id and page, handling multiple files per student
+        student_files = {}
         for image_path in image_files:
-            overlay = process_single_image(image_path, omr_marker, df_bubbles, results_df, all_student_answers)
+            path_obj = Path(image_path)
+            filename = path_obj.stem
+            
+            # Parse filename to get student_id and page
+            parts = filename.split("_")
+            if len(parts) >= 2:
+                student_id = parts[0]
+                page_part = parts[1]
+                
+                # Create a key for grouping
+                student_page_key = f"{student_id}_{page_part}"
+                
+                if student_page_key not in student_files:
+                    student_files[student_page_key] = []
+                
+                student_files[student_page_key].append(image_path)
+        
+        # Process each student's files
+        overlay_images = {}  # Store all pages for each student
+        for student_page_key, file_list in student_files.items():
+            # Sort files to ensure main file comes first
+            file_list.sort()
+            
+            student_id = student_page_key.split("_")[0]
+            
+            # Process the main file (first one) for OMR
+            main_file = file_list[0]
+            overlay = process_single_image(main_file, omr_marker, df_bubbles, results_df, all_student_answers)
+            
             if overlay is not None:
-                student_id = Path(image_path).stem.split("_")[0]
-                overlay_images[student_id] = overlay
+                # Crop the main overlay
+                height, width = overlay.shape[:2]
+                crop_height = int(height * TOP_CROP_PERCENTAGE)
+                cropped_main = overlay[crop_height:, :]
+                
+                # Start with the main overlay
+                all_pages = [Image.fromarray(cropped_main)]
+                
+                # Process additional files (no OMR, just crop and add)
+                for additional_file in file_list[1:]:
+                    print(f"Adding additional page: {additional_file}")
+                    additional_image = cv2.imread(str(additional_file), cv2.IMREAD_GRAYSCALE)
+                    if additional_image is not None:
+                        # Convert to BGR for consistency
+                        additional_bgr = cv2.cvtColor(additional_image, cv2.COLOR_GRAY2BGR)
+                        
+                        # Crop the additional page
+                        add_height, add_width = additional_bgr.shape[:2]
+                        add_crop_height = int(add_height * TOP_CROP_PERCENTAGE)
+                        cropped_additional = additional_bgr[add_crop_height:, :]
+                        
+                        # Add to pages list
+                        all_pages.append(Image.fromarray(cropped_additional))
+                
+                overlay_images[student_id] = all_pages
         
         # Save per-page results in page-specific folder
         page = directory.name
@@ -94,18 +146,17 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
         results_df.to_csv(csv_path, index_label="student_id")
         print(f"Saved per-page results to: {csv_path}")
         
-        # Save overlay PDFs for this page
-        for student_id, overlay in overlay_images.items():
+        # Save overlay PDFs for this page (with all pages concatenated)
+        for student_id, pages in overlay_images.items():
             pdf_path = page_dir / f"{student_id}_{page}.pdf"
             
-            # Crop the top portion of the image
-            height, width = overlay.shape[:2]
-            crop_height = int(height * TOP_CROP_PERCENTAGE)
-            cropped_overlay = overlay[crop_height:, :]  # Crop from crop_height to bottom
-            
-            img = Image.fromarray(cropped_overlay)
-            img.save(pdf_path, "PDF", resolution=100.0)
-            print(f"Saved overlay PDF: {pdf_path}")
+            # Save as multi-page PDF
+            if len(pages) > 1:
+                pages[0].save(pdf_path, "PDF", resolution=100.0, save_all=True, append_images=pages[1:])
+                print(f"Saved multi-page overlay PDF: {pdf_path} ({len(pages)} pages)")
+            else:
+                pages[0].save(pdf_path, "PDF", resolution=100.0)
+                print(f"Saved overlay PDF: {pdf_path}")
     
     # Process subdirectories recursively
     for subdir in subdirs:
@@ -265,7 +316,33 @@ def process_single_image(image_path, omr_marker, df_bubbles, results_df, all_stu
         for question, choices in regular_bubbles.items():
             if question not in all_student_answers[student_id]:
                 all_student_answers[student_id][question] = []
-            all_student_answers[student_id][question].extend(choices)
+            
+            # Check if this question has a numeric answer
+            has_numeric_answer = question in all_student_answers[student_id] and all_student_answers[student_id][question]
+            
+            # Filter out "Other" choice if there's a numeric answer
+            # The "Other" choice is the one associated with numeric bubbles in the CSV
+            filtered_choices = []
+            for choice in choices:
+                # Check if this choice is associated with numeric bubbles by looking for
+                # any numeric bubble entries in the CSV for this question/subquestion/choice combination
+                is_other_choice = False
+                question_num = question.split('.')[0]
+                subquestion = question.split('.')[1]
+                
+                # Look for numeric bubbles associated with this choice
+                for _, bubble in page_bubbles.iterrows():
+                    if (str(bubble['question']).startswith(f"{question_num}-") and 
+                        bubble['subquestion'] == subquestion and
+                        bubble['choice'] == choice):
+                        is_other_choice = True
+                        break
+                
+                # Only include this choice if there's no numeric answer or it's not the "Other" choice
+                if not has_numeric_answer or not is_other_choice:
+                    filtered_choices.append(choice)
+            
+            all_student_answers[student_id][question].extend(filtered_choices)
         
         # Add threshold to per-page results
         results_df.loc[student_id, f'page{page_number}_threshold'] = threshold
