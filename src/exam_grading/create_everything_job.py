@@ -1,18 +1,28 @@
-#!/usr/bin/env python3
-"""
-Create everything_job.csv that combines bubble sheet data with student answers.
-For each student_id/problem/subquestion combination, includes the page number
-from bubbles.csv if it exists.
-
-Usage: python 4_create_everything_job.py <bubbles_csv_path> <consolidated_answers_csv_path>
-"""
-
-import sys
+"""Create everything_job.csv that combines bubble sheet data with student answers."""
 import pandas as pd
 from pathlib import Path
 
-def create_everything_job(bubbles_path, answers_path):
-    """Create everything_job.csv with all student/problem/subquestion combinations"""
+from .common.validators import validate_csv_file
+
+
+def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: str) -> str:
+    """
+    Create everything_job.csv with all student/problem/subquestion combinations.
+    
+    Args:
+        bubbles_csv_path: Path to bubbles.csv file
+        consolidated_answers_csv_path: Path to consolidated answers CSV file
+        
+    Returns:
+        Path to the created everything_job.csv file
+    """
+    bubbles_path = Path(bubbles_csv_path)
+    answers_path = Path(consolidated_answers_csv_path)
+    
+    # Validate paths
+    validate_csv_file(bubbles_path, "Bubbles CSV file")
+    validate_csv_file(answers_path, "Consolidated answers CSV file")
+    
     # Define paths
     output_dir = bubbles_path.parent / 'csv_jobs'
     output_path = output_dir / 'everything_job.csv'
@@ -71,32 +81,4 @@ def create_everything_job(bubbles_path, answers_path):
     output_df.to_csv(output_path, index=False)
     
     print(f"Created {output_path} with {len(output_df)} rows")
-
-def main():
-    # Get the arguments that were passed to the script
-    _, script_args = sys.argv[0], sys.argv[1:]
-    
-    # If less than two arguments were given to the script, we do not have the CSV files we need
-    if len(script_args) < 2:
-        print("Error: not enough arguments were given to the script")
-        print("Usage: python 4_create_everything_job.py <bubbles_csv_path> <consolidated_answers_csv_path>")
-        sys.exit(1)
-    
-    # Parse arguments
-    bubbles_path = Path(script_args[0])
-    answers_path = Path(script_args[1])
-    
-    # Validate paths
-    if not bubbles_path.is_file():
-        print(f"Error: bubbles CSV file not found: {bubbles_path}")
-        sys.exit(1)
-    
-    if not answers_path.is_file():
-        print(f"Error: consolidated answers CSV file not found: {answers_path}")
-        sys.exit(1)
-    
-    # Create everything job
-    create_everything_job(bubbles_path, answers_path)
-
-if __name__ == "__main__":
-    main()
+    return str(output_path)

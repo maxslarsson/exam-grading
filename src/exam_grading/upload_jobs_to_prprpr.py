@@ -1,104 +1,13 @@
-#!/usr/bin/env python3
-"""
-Upload job CSVs to the prprpr API.
-
-Usage:
-    python upload_jobs_to_prprpr.py <csv_folder>
-
-CSV files should be named: <assignee>_<job_name>.csv
-where job_name can contain underscores that will be replaced with spaces.
-
-Each CSV should have columns matching JobItem fields:
-- student_id (required)
-- problem (required)
-- subquestion (required)
-- answer
-- suggested_score
-- adjusted_score
-- standard_error
-- general_error
-- feedback
-- internal_comments
-- is_flagged_for_follow_up
-- page_numbers
-- is_submitted
-"""
-
-import os
-import sys
-import random
-import string
-import base64
-import socket
-import hashlib
+"""Upload job CSVs to the prprpr API."""
 import requests
-import webbrowser
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Any
-from urllib.parse import urlparse, parse_qs
 
-
-PRPRPR_DEBUG = os.getenv("PRPRPR_DEBUG", "0") == "1"
-if PRPRPR_DEBUG:
-    CLIENT_ID = "w1pagvvYT00eDrxMykMyPDviS1gMwO4XJtiHajCN"
-    CLIENT_SECRET = "oawdfeOl6eqAiemWePB4k8M19HhjT4VNgSzR1MialtusFfltcExzYhfoeOAzat0N6pNoE6E7aMMXFASOIBEFEWlUqwq9qRm4Aw2xJ283upImVu8vKJdy6zHmudKxUzF6"
-    BASE_URL = "http://127.0.0.1:8000"
-else:
-    CLIENT_ID = "Wf42oWVR2YsYfwQYT2Aoh6dqgZyo23FQ0ofOIdEZ"
-    CLIENT_SECRET = "BIojMEaDVRcnKgmMdoUNnSv3FErvimiFhQnInv7zZrE5ZYYVODpbdfUOYPYn5O6OKJAguKdCMc3Xd3WxA99242fMG4l8JjtcorrOYwkuBJ92VpneVAuKSxPO55e9FIp7"
-    BASE_URL = "https://clrify.it"
-
-
-def get_access_token() -> str:
-    """Get OAuth2 access token using PKCE flow."""
-    code_verifier = ''.join(random.choice(string.ascii_uppercase + string.digits) 
-                           for _ in range(random.randint(43, 128)))
-
-    code_challenge = hashlib.sha256(code_verifier.encode('utf-8')).digest()
-    code_challenge = base64.urlsafe_b64encode(code_challenge).decode('utf-8').replace('=', '')
-
-    # Open a socket to listen for the response from authentication
-    with socket.socket() as s:
-        s.bind(("localhost", 0))
-        s.listen()
-
-        port = s.getsockname()[1]
-        redirect_uri = f"http://127.0.0.1:{port}"
-        auth_url = (f"{BASE_URL}/o/authorize/?response_type=code&"
-                   f"code_challenge={code_challenge}&code_challenge_method=S256&"
-                   f"client_id={CLIENT_ID}&redirect_uri={redirect_uri}")
-        
-        print(f"Please visit this URL to authorize this application: {auth_url}")
-
-        webbrowser.open(auth_url)
-
-        conn, _ = s.accept()
-        request = conn.recv(4096)
-
-        # Send success message to browser
-        conn.send(b"HTTP/1.1 200 OK\n"
-                  b"Content-Type: text/html\n\n"
-                  b"<html><body>The authentication flow has completed. You may close this window and return to the terminal.</body></html>")
-
-    # Extract authorization code from URL
-    url = request.decode().split()[1]
-    query = parse_qs(urlparse(url).query)
-    auth_code = query["code"][0]
-
-    # Exchange authorization code for access token
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "code": auth_code,
-        "code_verifier": code_verifier,
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code"
-    }
-    
-    r = requests.post(f"{BASE_URL}/o/token/", data=data)
-    r.raise_for_status()
-    return r.json()["access_token"]
+from .common.auth import get_prprpr_access_token
+from .common.validators import validate_directory
+from .common.progress import ProgressPrinter
+from .common.config import PRPRPR_DEBUG, PRPRPR_BASE_URL
 
 
 def convert_roman_to_int(roman: str) -> int:
@@ -137,7 +46,6 @@ def convert_roman_to_int(roman: str) -> int:
             raise ValueError(f"Invalid Roman numeral character: {roman[i]}")
     
     return int_value
-
 
 
 def csv_to_job_items(csv_path: Path) -> List[Dict[str, Any]]:
@@ -213,7 +121,7 @@ def upload_job(headers: dict[str, str], job_name: str, assignee: str, items: Lis
     Returns:
         Response data from API
     """
-    endpoint = f"{BASE_URL}/api/jobs/create/"
+    endpoint = f"{PRPRPR_BASE_URL}/api/jobs/create/"
     
     payload = {
         'name': job_name,
@@ -227,26 +135,20 @@ def upload_job(headers: dict[str, str], job_name: str, assignee: str, items: Lis
     return response.json()
 
 
-def main():
-    # Get the arguments that were passed to the script
-    _, script_args = sys.argv[0], sys.argv[1:]
-
-    # If less than one argument was given to the script, we need the csv folder
-    if len(script_args) < 1:
-        print("Error: not enough arguments were given to the script")
-        print("Usage: python upload_jobs_to_prprpr.py <csv_folder>")
-        sys.exit(1)
-
-    csv_folder = Path(script_args[0])
-
-    if not csv_folder.is_dir():
-        print(f"Error: {csv_folder} is not a valid directory")
-        sys.exit(1)
-
+def upload_jobs_to_prprpr(csv_folder_path: str) -> None:
+    """
+    Upload job CSVs to the prprpr API.
+    
+    Args:
+        csv_folder_path: Path to folder containing CSV files
+    """
+    csv_folder = Path(csv_folder_path)
+    validate_directory(csv_folder, "CSV folder")
+    
     if not PRPRPR_DEBUG:
         input("You are about to upload jobs to production. Press Enter to continue...")
-
-    access_token = get_access_token()
+    
+    access_token = get_prprpr_access_token()
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
@@ -256,16 +158,17 @@ def main():
     csv_files = list(csv_folder.glob('**/*.csv'))
     if not csv_files:
         print(f"No CSV files found in {csv_folder}")
-        sys.exit(1)
+        return
     
     print(f"Found {len(csv_files)} CSV files to process")
     
     # Process each CSV file
     successful = 0
     failed = 0
+    progress = ProgressPrinter("Creating jobs", len(csv_files))
 
     for i, csv_file in enumerate(csv_files):
-        print(f"Creating jobs...{i}/{len(csv_files)}", end='\r', flush=True)
+        progress.update(i + 1)
         
         try:
             # Parse filename
@@ -289,7 +192,7 @@ def main():
             print(f"  ✗ Job creation error: {str(e)}")
             failed += 1
 
-    print("Creating jobs...Done     ")
+    progress.done()
     
     # Summary
     print(f"\n{'='*50}")
@@ -299,8 +202,4 @@ def main():
     print(f"  Total: {len(csv_files)}")
     
     if failed > 0:
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
+        raise RuntimeError(f"Failed to upload {failed} jobs")

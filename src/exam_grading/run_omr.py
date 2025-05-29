@@ -1,17 +1,13 @@
-#!/usr/bin/env python3
-"""
-Simplified OMR bubble detector based on OMRChecker
-Accepts a CSV file with bubble positions and detects which ones are marked
-"""
-
-import sys
+"""Run OMR (Optical Mark Recognition) on parsed exam images."""
 import math
 from pathlib import Path
+from glob import glob
 import cv2
 import numpy as np
 import pandas as pd
-from glob import glob
 from PIL import Image
+
+from .common.validators import validate_file, validate_csv_file, validate_directory
 
 
 # Constants
@@ -22,36 +18,31 @@ BUBBLE_RADIUS = 7  # Bubble radius in points (LaTeX points)
 THRESHOLD_CIRCLE = 0.6  # Minimum confidence for marker detection
 ANCHOR_RADIUS = 10  # Anchor marker radius in points
 ANCHOR_DISTANCE = 30  # Distance from edges in points
-GLOBAL_THRESHOLD = 205  # Maximum intensity value for a bubble to be considered marked. Any bubble with intensity above this is considered unmarked
-TOP_CROP_PERCENTAGE = 0.09  # Percentage of the page to crop from the top when saving PDFs (0.4 = 40%)
+GLOBAL_THRESHOLD = 210  # Maximum intensity value for a bubble to be considered marked
+TOP_CROP_PERCENTAGE = 0.09  # Percentage of the page to crop from the top when saving PDFs
 
 
-def main():
-    """Main entry point for the OMR processor"""
-    if len(sys.argv) < 4:
-        print("Usage: python new_OMR.py <omr_marker.jpg> <bubbles.csv> <parsed_folder>")
-        print("  omr_marker.jpg: Path to the marker image for alignment")
-        print("  bubbles.csv: CSV file with bubble positions (page,question,subquestion,choice,Xpos,Ypos,correct)")
-        print("  parsed_folder: Folder containing parsed exam pages")
-        sys.exit(1)
+def run_omr(omr_marker_path: str, bubbles_csv_path: str, parsed_folder_path: str) -> str:
+    """
+    Run OMR on parsed exam images to detect marked bubbles.
     
-    # Parse arguments
-    omr_marker_path = Path(sys.argv[1])
-    bubbles_csv_path = Path(sys.argv[2])
-    parsed_folder_path = Path(sys.argv[3])
+    Args:
+        omr_marker_path: Path to the marker image for alignment
+        bubbles_csv_path: CSV file with bubble positions
+        parsed_folder_path: Folder containing parsed exam pages
+        
+    Returns:
+        Path to the output folder containing OMR results
+    """
+    # Convert to Path objects
+    omr_marker_path = Path(omr_marker_path)
+    bubbles_csv_path = Path(bubbles_csv_path)
+    parsed_folder_path = Path(parsed_folder_path)
     
     # Validate inputs
-    if not omr_marker_path.is_file():
-        print(f"Error: Marker file not found: {omr_marker_path}")
-        sys.exit(1)
-    
-    if not bubbles_csv_path.is_file() or bubbles_csv_path.suffix != ".csv":
-        print(f"Error: Invalid CSV file: {bubbles_csv_path}")
-        sys.exit(1)
-    
-    if not parsed_folder_path.is_dir():
-        print(f"Error: Parsed folder not found: {parsed_folder_path}")
-        sys.exit(1)
+    validate_file(omr_marker_path, "OMR marker file")
+    validate_csv_file(bubbles_csv_path, "Bubbles CSV file")
+    validate_directory(parsed_folder_path, "Parsed folder")
     
     # Load data
     omr_marker = cv2.imread(str(omr_marker_path), cv2.IMREAD_GRAYSCALE)
@@ -67,6 +58,8 @@ def main():
     
     # Create consolidated output CSV with selected bubbles
     create_consolidated_output(all_student_answers, output_dir)
+    
+    return str(output_dir)
 
 
 def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student_answers):
@@ -481,8 +474,6 @@ def calculate_threshold(values):
     return threshold
 
 
-
-
 def point_to_pixel(point_value, dpi):
     """Convert LaTeX points to pixels"""
     # 1 point = 1/72.27 inch
@@ -522,7 +513,3 @@ def create_consolidated_output(all_student_answers, output_dir):
     print(f"\nSaved consolidated answers to: {output_path}")
     print(f"Total students processed: {len(consolidated_df)}")
     print(f"Total questions: {len(sorted_questions)}")
-
-
-if __name__ == "__main__":
-    main()

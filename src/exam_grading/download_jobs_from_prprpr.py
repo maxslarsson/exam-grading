@@ -1,104 +1,12 @@
-#!/usr/bin/env python3
-"""
-Download jobs from the prprpr API and save them as CSV files.
-
-Usage:
-    python download_jobs_from_prprpr.py <output_folder>
-
-Jobs will be saved as: <assignee>_<job_name>.csv
-where spaces in job_name will be replaced with underscores.
-
-Each CSV will have columns matching JobItem fields:
-- student_id (required)
-- problem (required)
-- subquestion (required)
-- answer
-- suggested_score
-- adjusted_score
-- standard_error
-- general_error
-- feedback
-- internal_comments
-- is_flagged_for_follow_up
-- page_numbers
-- is_submitted
-"""
-
-import os
-import sys
-import random
-import string
-import base64
-import socket
-import hashlib
+"""Download jobs from the prprpr API and save them as CSV files."""
 import requests
-import webbrowser
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Any
-from urllib.parse import urlparse, parse_qs
 
-
-PRPRPR_DEBUG = os.getenv("PRPRPR_DEBUG", "0") == "1"
-if PRPRPR_DEBUG:
-    CLIENT_ID = "w1pagvvYT00eDrxMykMyPDviS1gMwO4XJtiHajCN"
-    CLIENT_SECRET = "oawdfeOl6eqAiemWePB4k8M19HhjT4VNgSzR1MialtusFfltcExzYhfoeOAzat0N6pNoE6E7aMMXFASOIBEFEWlUqwq9qRm4Aw2xJ283upImVu8vKJdy6zHmudKxUzF6"
-    BASE_URL = "http://127.0.0.1:8000"
-else:
-    CLIENT_ID = "Wf42oWVR2YsYfwQYT2Aoh6dqgZyo23FQ0ofOIdEZ"
-    CLIENT_SECRET = "BIojMEaDVRcnKgmMdoUNnSv3FErvimiFhQnInv7zZrE5ZYYVODpbdfUOYPYn5O6OKJAguKdCMc3Xd3WxA99242fMG4l8JjtcorrOYwkuBJ92VpneVAuKSxPO55e9FIp7"
-    BASE_URL = "https://clrify.it"
-
-
-def get_access_token() -> str:
-    """Get OAuth2 access token using PKCE flow."""
-    code_verifier = ''.join(random.choice(string.ascii_uppercase + string.digits) 
-                           for _ in range(random.randint(43, 128)))
-
-    code_challenge = hashlib.sha256(code_verifier.encode('utf-8')).digest()
-    code_challenge = base64.urlsafe_b64encode(code_challenge).decode('utf-8').replace('=', '')
-
-    # Open a socket to listen for the response from authentication
-    with socket.socket() as s:
-        s.bind(("localhost", 0))
-        s.listen()
-
-        port = s.getsockname()[1]
-        redirect_uri = f"http://127.0.0.1:{port}"
-        auth_url = (f"{BASE_URL}/o/authorize/?response_type=code&"
-                   f"code_challenge={code_challenge}&code_challenge_method=S256&"
-                   f"client_id={CLIENT_ID}&redirect_uri={redirect_uri}")
-        
-        print(f"Please visit this URL to authorize this application: {auth_url}")
-
-        webbrowser.open(auth_url)
-
-        conn, _ = s.accept()
-        request = conn.recv(4096)
-
-        # Send success message to browser
-        conn.send(b"HTTP/1.1 200 OK\n"
-                  b"Content-Type: text/html\n\n"
-                  b"<html><body>The authentication flow has completed. You may close this window and return to the terminal.</body></html>")
-
-    # Extract authorization code from URL
-    url = request.decode().split()[1]
-    query = parse_qs(urlparse(url).query)
-    auth_code = query["code"][0]
-
-    # Exchange authorization code for access token
-    data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "code": auth_code,
-        "code_verifier": code_verifier,
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code"
-    }
-    
-    r = requests.post(f"{BASE_URL}/o/token/", data=data)
-    r.raise_for_status()
-    return r.json()["access_token"]
+from .common.auth import get_prprpr_access_token
+from .common.progress import ProgressPrinter
+from .common.config import PRPRPR_DEBUG, PRPRPR_BASE_URL
 
 
 def fetch_all_jobs(headers: dict[str, str]) -> List[Dict[str, Any]]:
@@ -108,7 +16,7 @@ def fetch_all_jobs(headers: dict[str, str]) -> List[Dict[str, Any]]:
     Returns:
         List of job dictionaries
     """
-    endpoint = f"{BASE_URL}/api/jobs/"
+    endpoint = f"{PRPRPR_BASE_URL}/api/jobs/"
     
     response = requests.get(endpoint, headers=headers)
     response.raise_for_status()
@@ -123,7 +31,7 @@ def fetch_job_items(headers: dict[str, str], job_id: str) -> List[Dict[str, Any]
     Returns:
         List of job item dictionaries
     """
-    endpoint = f"{BASE_URL}/api/jobs/{job_id}/"
+    endpoint = f"{PRPRPR_BASE_URL}/api/jobs/{job_id}/"
     
     response = requests.get(endpoint, headers=headers)
     response.raise_for_status()
@@ -164,25 +72,22 @@ def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path) -> None:
     df[columns_to_write].to_csv(csv_path, index=False)
 
 
-def main():
-    # Get the arguments that were passed to the script
-    _, script_args = sys.argv[0], sys.argv[1:]
-
-    # If less than one argument was given to the script, we need the output folder
-    if len(script_args) < 1:
-        print("Error: not enough arguments were given to the script")
-        print("Usage: python download_jobs_from_prprpr.py <output_folder>")
-        sys.exit(1)
-
-    output_folder = Path(script_args[0])
-
+def download_jobs_from_prprpr(output_folder_path: str) -> None:
+    """
+    Download jobs from prprpr API and save as CSV files.
+    
+    Args:
+        output_folder_path: Path to folder where CSV files will be saved
+    """
+    output_folder = Path(output_folder_path)
+    
     # Create output folder if it doesn't exist
     output_folder.mkdir(parents=True, exist_ok=True)
-
+    
     if not PRPRPR_DEBUG:
         input("You are about to download jobs from production. Press Enter to continue...")
-
-    access_token = get_access_token()
+    
+    access_token = get_prprpr_access_token()
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
@@ -196,14 +101,15 @@ def main():
         
         if not jobs:
             print("No jobs found to download")
-            sys.exit(0)
+            return
         
         # Process each job
         successful = 0
         failed = 0
+        progress = ProgressPrinter("Downloading jobs", len(jobs))
         
         for i, job in enumerate(jobs):
-            print(f"Downloading jobs...{i+1}/{len(jobs)}", end='\r', flush=True)
+            progress.update(i + 1)
             
             try:
                 job_id = job['id']
@@ -230,7 +136,7 @@ def main():
                 print(f"\n  ✗ Error downloading job {job.get('name', 'unknown')}: {str(e)}")
                 failed += 1
         
-        print("\nDownloading jobs...Done     ")
+        progress.done()
         
         # Summary
         print(f"\n{'='*50}")
@@ -241,15 +147,11 @@ def main():
         print(f"  Output folder: {output_folder.absolute()}")
         
         if failed > 0:
-            sys.exit(1)
+            raise RuntimeError(f"Failed to download {failed} jobs")
             
     except requests.HTTPError as e:
         print(f"Error fetching jobs: {e.response.status_code} - {e.response.text}")
-        sys.exit(1)
+        raise
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
+        raise
