@@ -8,6 +8,9 @@ def convert_roman_to_int(roman: str) -> int:
     Returns:
         int: Integer value of the Roman numeral.
     """
+    roman = roman.strip().upper()  # Normalize input: strip whitespace and convert to uppercase
+
+    # Check if the input is empty
     if not roman:
         return 0
     

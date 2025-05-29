@@ -6,7 +6,7 @@ authors = [
     {name = "Max Larsson",email = "maxslarsson@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
     "qreader (>=3.16,<4.0)",
     "pandas (>=2.2.3,<3.0.0)",
@@ -15,7 +15,8 @@ dependencies = [
     "boto3 (>=1.38.24,<2.0.0)",
     "requests (>=2.32.0,<3.0.0)",
     "google-api-python-client (>=2.152.0,<3.0.0)",
-    "google-auth-oauthlib (>=1.2.1,<2.0.0)"
+    "google-auth-oauthlib (>=1.2.1,<2.0.0)",
+    "fuf-service @ git+ssh://git@github.com/maxslarsson/fuf-service.git",
 ]
 
 [project.scripts]

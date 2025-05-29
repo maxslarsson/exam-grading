@@ -34,7 +34,7 @@ def csv_to_job_items(csv_path: Path) -> List[Dict[str, Any]]:
         # Convert Roman numeral subquestion to integer if needed
         if isinstance(subquestion, str) and subquestion.isalpha():
             try:
-                subquestion = convert_roman_to_int(subquestion.upper())
+                subquestion = convert_roman_to_int(subquestion)
             except ValueError as e:
                 raise ValueError(f"Invalid Roman numeral in row {idx + 1}: {e}")
         elif not isinstance(subquestion, int):

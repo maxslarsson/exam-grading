@@ -1,0 +1,10 @@
+[
+    {
+        "name": "birthday_cards",
+        "path": "../problems/Content/binomial/birthday_cards.tex"
+    },
+    {
+        "name": "5_coins",
+        "path": "../problems/Content/rand_var/5_coins.tex"
+    }
+]

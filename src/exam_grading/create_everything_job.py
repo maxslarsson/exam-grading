@@ -12,6 +12,25 @@ from .common.roman_numerals import convert_roman_to_int
 from .common.validators import validate_csv_file
 
 
+def path_relative_to(source: Path, path: Path) -> Path:
+    """Returns the path `path` relative to a source path.
+
+    For example, if path is `./folder/file.txt` and we want it relative to `~/folder2`, then this function would return
+    the path `~/folder2/folder/file.txt`.
+
+    Args:
+        source: The base path.
+        path: The relative path that will be converted to be relative to the source path.
+
+    Returns:
+        The path relative to the source path.
+    """
+    if source.is_file():
+        return (source.parent / path).resolve()
+    else:
+        return (source / path).resolve()
+    
+
 def load_questiondb(questiondb_path: Path) -> list[Problem]:
     """
     Load QuestionDB and parse all problems.
@@ -33,7 +52,8 @@ def load_questiondb(questiondb_path: Path) -> list[Problem]:
 
         problems = []
         for mapping in questiondb:
-            soup = TexSoup(mapping.path.read_text())
+            problem_path = path_relative_to(questiondb_path.parent, Path(mapping.path))
+            soup = TexSoup(problem_path.read_text())
             problem = Problem.from_latex(soup)
             problems.append(problem)
         return problems
@@ -162,7 +182,7 @@ def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: 
                     problem = problems[problem_idx]
 
                     # Convert subquestion to int (assuming 1-based indexing)
-                    subquestion_idx = convert_roman_to_int(row['subquestion'].upper()) - 1
+                    subquestion_idx = convert_roman_to_int(row['subquestion']) - 1
                     if subquestion_idx < 0 or subquestion_idx >= len(problem.subquestions):
                         print(f"Warning: Subquestion {row['subquestion']} not found in problem {row['problem']}")
                         continue
