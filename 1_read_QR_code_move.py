@@ -58,9 +58,9 @@ def main():
         filename = f"{net_id}_{page}"
         output_file_path = output_folder_path / page / f"{filename}.jpeg"
 
-        if output_file_path.is_file():
-            existing_files = list(output_file_path.parent.glob(f"{filename}*.jpeg"))
-            output_file_path = output_file_path.parent / f"{filename}_{len(existing_files)}.jpeg"
+        # if output_file_path.is_file():
+        #     existing_files = list(output_file_path.parent.glob(f"{filename}*.jpeg"))
+        #     output_file_path = output_file_path.parent / f"{filename}_{len(existing_files)}.jpeg"
 
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
         output_file_path.write_bytes(file.read_bytes())
