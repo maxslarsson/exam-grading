@@ -12,6 +12,7 @@ REPLACEMENT_PAGE_URL_PATTERN = re.compile(
     r'^https?://(www\.)?clrify\.it/replacement/'
     r'(?P<net_id>[^/]+)/'      # capture net_id (anything except a slash)
     r'(?P<page>[^/]+)/?'       # capture page (anything except a slash)
+    r'(?P<extra>.*)?'          # optional extra part (anything after the page)
     r'$'
 )
 
@@ -52,20 +53,24 @@ def read_qr_codes_and_move(exam_scans_folder_path: str) -> str:
                 break
         
         if decoded_text is None:  # No QR code found
-            net_id, page = file.stem, "noQRcode"
+            net_id, page, extra = file.stem, "noQRcode", None
         else:
             m = REPLACEMENT_PAGE_URL_PATTERN.match(decoded_text)
             if m is None:
                 print(f"Error: QR code '{decoded_text}' does not match expected format.")
                 continue
-            net_id, page = m.group("net_id"), m.group("page")
-        
+            net_id, page, extra = m.group("net_id"), m.group("page"), m.group("extra")
+
         filename = f"{net_id}_{page}"
         output_file_path = output_folder_path / page / f"{filename}.jpeg"
 
         if output_file_path.is_file():
             existing_files = list(output_file_path.parent.glob(f"{filename}*.jpeg"))
-            output_file_path = output_file_path.parent / f"{filename}_{len(existing_files)}.jpeg"
+            additional_output_path = output_file_path.parent / f"{filename}_{len(existing_files)}.jpeg"
+            if extra == "replacement":
+                output_file_path.rename(additional_output_path)
+            else:
+                output_file_path = additional_output_path
         
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
         output_file_path.write_bytes(file.read_bytes())
