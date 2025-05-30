@@ -1,4 +1,12 @@
-"""Split the everything_job.csv into separate job files based on job_number."""
+"""Split the everything_job.csv into separate job files based on job_number.
+
+This module takes the master grading job file and splits it into individual
+job files based on the job_number column. This allows different graders to
+work on different portions of the exam independently.
+
+The job_number column should be populated before running this module, typically
+by assigning job numbers based on grader workload or problem groupings.
+"""
 import pandas as pd
 from pathlib import Path
 
@@ -7,15 +15,32 @@ from .common.progress import ProgressPrinter
 
 
 def split_everything_job(everything_job_csv: str, csv_jobs_folder: str) -> list[str]:
-    """
-    Split the everything_job.csv into separate job files based on job_number.
+    """Split the everything_job.csv into separate job files based on job_number.
+    
+    This function reads the master job file and creates individual CSV files
+    for each unique job_number. The job_number column is removed from the
+    output files since it's no longer needed once split.
     
     Args:
-        everything_job_csv: Path to the everything_job.csv file
+        everything_job_csv: Path to the everything_job.csv file containing
+                          all grading tasks with job_number assignments
         csv_jobs_folder: Path to folder where individual job CSV files will be saved
         
     Returns:
-        List of paths to the created job CSV files
+        list[str]: List of paths to the created job CSV files
+        
+    Output format:
+        Each job file is named Job_{number}.csv and contains all rows
+        with that job_number, minus the job_number column itself.
+        
+    Example:
+        Input with job_numbers 1, 2, 3 creates:
+        - Job_1.csv
+        - Job_2.csv  
+        - Job_3.csv
+        
+    Raises:
+        ValueError: If job_number column is missing or no valid job numbers found
     """
     everything_job_path = Path(everything_job_csv)
     csv_jobs_folder_path = Path(csv_jobs_folder)

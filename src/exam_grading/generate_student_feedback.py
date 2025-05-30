@@ -1,4 +1,15 @@
-"""Generate personalized feedback for students based on their exam performance."""
+"""Generate personalized feedback for students based on their exam performance.
+
+This module creates individualized PDF feedback reports for each student by:
+1. Loading grading results from the merged jobs CSV
+2. Extracting scores, feedback, and error messages for each problem
+3. Finding annotated PDF scans of student work
+4. Using the FUF library to generate LaTeX-based feedback documents
+5. Compiling the LaTeX to produce professional PDF reports
+
+The feedback includes problem-by-problem scores, grader comments, and
+embedded images of the student's work with annotations.
+"""
 
 import shutil
 import pandas as pd
@@ -12,7 +23,8 @@ from .common.progress import ProgressPrinter
 from .common.validators import validate_csv_file, validate_file
 
 
-COURSE_NAME = "Test Course"
+# Course name to display on feedback documents
+COURSE_NAME = "KYPA321 Summer 2025"
 
 
 def get_subquestion_page_numbers(problem_name: str, subquestion_name: str, student_id: str, df_merged_jobs: pd.DataFrame) -> List[int]:
@@ -164,15 +176,27 @@ def create_scan_mapping_for_student(
 
 
 def create_multiindex_dataframe_from_merged_jobs(merged_jobs_df: pd.DataFrame, students_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Create a multi-index DataFrame from merged grading jobs.
+    """Create a multi-index DataFrame from merged grading jobs for LaTeX generation.
+    
+    This function transforms the long-format grading data into a wide-format
+    multi-index DataFrame that the FUF library expects. Each problem.subquestion
+    gets four columns: Answer, Score, Standard Error, and Individual Feedback.
     
     Args:
-        merged_jobs_df: DataFrame with merged grading jobs
+        merged_jobs_df: DataFrame with merged grading jobs in long format
         students_df: DataFrame with student information (studentID, first_name, last_name, email)
         
     Returns:
         DataFrame with multi-index columns for all problem.subquestion combinations
+        
+    Multi-index Structure:
+        Level 0: Problem.subquestion (e.g., "1.i", "2.ii") or empty for student info
+        Level 1: Data type (Answer, Score, Standard Error, Ind. Feedback)
+        
+    Example Output Columns:
+        ('', 'studentID'), ('', 'first_name'), ('', 'last_name'), ('', 'email'),
+        ('1.i', 'Answer'), ('1.i', 'Score'), ('1.i', 'Standard Error'), ('1.i', 'Ind. Feedback'),
+        ('1.ii', 'Answer'), ...
     """
     # Get all unique problem.subquestion combinations
     problem_subquestion_pairs = []
@@ -276,17 +300,24 @@ def generate_feedback_for_one_student(
     output_dir: Path,
     scan_mapping: Optional[dict] = None
 ) -> Path:
-    """
-    Generate personalized feedback for one student.
+    """Generate personalized feedback PDF for one student.
+    
+    This function uses the FUF library to generate a LaTeX document with
+    the student's exam results, including scores, feedback, and optionally
+    embedded scans of their work. The LaTeX is then compiled to PDF.
     
     Args:
-        student_row: Series with student data
-        questiondb: The question database
+        student_row: Series with student personal data (name, email)
+        questiondb: The question database with problem definitions
         df_round_one: Multi-index DataFrame with all student data
         output_dir: Directory to save feedback PDFs
+        scan_mapping: Optional dict mapping subquestions to PDF scan files
         
     Returns:
         Path to the generated PDF file
+        
+    Note:
+        The PDF filename will be {student_id}_feedback.pdf
     """
     question_names = [q.name for q in questiondb]
     
@@ -316,16 +347,38 @@ def generate_feedback_for_all_students(
         students_csv_path: str,
         annotated_pdfs_dir: Optional[str] = None
 ) -> List[Path]:
-    """
-    Generate personalized feedback for all students based on their exam performance.
+    """Generate personalized feedback PDFs for all students based on exam performance.
+    
+    This is the main function that orchestrates the feedback generation process.
+    It loads all necessary data, transforms it into the required format, and
+    generates individual PDF reports for each student. The PDFs include scores,
+    grader comments, and optionally embedded scans of student work.
     
     Args:
-        merged_grading_jobs_path (str): Path to the CSV file with merged grading results.
-        questiondb_path (str): Path to the question database (questiondb.json).
-        students_csv_path (str): Path to the students CSV file with columns: studentID, first_name, last_name, email
-
+        merged_grading_jobs_path: Path to CSV file with merged grading results
+                                 from all graders (output of merge_downloaded_jobs)
+        questiondb_path: Path to the question database JSON file containing
+                        problem definitions and metadata
+        students_csv_path: Path to CSV with student information. Required columns:
+                          studentID, first_name, last_name, email
+        annotated_pdfs_dir: Optional path to directory containing annotated PDFs.
+                           If provided, student work will be embedded in feedback
+    
     Returns:
-        List of paths to generated feedback PDFs
+        List[Path]: List of paths to generated feedback PDFs
+        
+    Output Structure:
+        Creates a 'student_feedback' directory containing:
+        - LaTeXclass/: LaTeX template files
+        - {student_id}_feedback.pdf: Individual student feedback files
+        
+    Raises:
+        ValueError: If required files are missing or have invalid format
+        
+    Note:
+        - LaTeX must be installed for PDF compilation
+        - Failed PDFs are logged but don't stop the batch
+        - Progress is displayed during generation
     """
     merged_grading_jobs_path = Path(merged_grading_jobs_path)
     questiondb_path = Path(questiondb_path)

@@ -1,4 +1,10 @@
-"""Download annotated PDFs from AWS S3 bucket to local folder."""
+"""Download annotated PDFs from AWS S3 bucket to local folder.
+
+This module retrieves graded PDFs from AWS S3 after they have been annotated
+by graders. It handles de-anonymization to restore original student IDs and
+preserves the directory structure from S3. The module supports pagination for
+large numbers of files.
+"""
 import boto3
 from pathlib import Path
 
@@ -8,12 +14,30 @@ from .common.progress import ProgressPrinter
 
 
 def get_annotated_pdfs_from_aws(destination_folder_path: str, students_csv_path: str = None) -> None:
-    """
-    Download annotated PDFs from AWS S3 bucket to local folder with de-anonymization.
+    """Download annotated PDFs from AWS S3 bucket to local folder with de-anonymization.
+    
+    This function downloads all PDFs from the 'grading/' prefix in S3, which includes
+    both student work and annotated versions. Student IDs are de-anonymized during
+    download to restore original identities. The S3 directory structure is preserved
+    locally.
     
     Args:
         destination_folder_path: Path to destination folder for downloaded PDFs
-        students_csv_path: Optional path to students CSV for de-anonymization
+        students_csv_path: Path to students CSV for de-anonymization (required)
+        
+    Raises:
+        ValueError: If students_csv_path is not provided
+        RuntimeError: If de-anonymization fails or files cannot be downloaded
+        
+    Directory Structure:
+        The function preserves the S3 structure:
+        - grading/student_work/studentID_page.pdf
+        - grading/annotated/graderID/studentID_page_annotated.pdf
+        
+    Note:
+        - Handles S3 pagination for buckets with many files
+        - Shows progress during download
+        - All files must be successfully de-anonymized (fail-safe)
     """
     destination_folder = Path(destination_folder_path)
     

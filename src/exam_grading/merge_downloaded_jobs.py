@@ -1,4 +1,11 @@
-"""Merge downloaded grading jobs from multiple graders."""
+"""Merge downloaded grading jobs from multiple graders.
+
+This module combines grading results from multiple graders into a single
+consolidated file. It handles conflicts where the same student/problem/subquestion
+was graded by multiple people, allowing interactive resolution of discrepancies.
+This is essential for courses with multiple TAs or when problems are split
+across graders.
+"""
 from pathlib import Path
 import pandas as pd
 from typing import Optional
@@ -8,18 +15,40 @@ from .common.progress import ProgressPrinter
 
 
 def merge_downloaded_jobs(downloaded_jobs_folder: str, output_file: Optional[str] = None) -> str:
-    """
-    Merge all downloaded job CSV files into a single file.
+    """Merge all downloaded job CSV files into a single consolidated file.
     
-    When there are conflicts (multiple graders for same student/problem/subquestion),
-    prompts the user to choose which grader's work to use.
+    This function combines grading data from multiple CSV files, detecting and
+    resolving conflicts where the same item was graded by multiple people. It
+    provides an interactive interface for choosing which grader's work to keep
+    when conflicts arise.
     
     Args:
         downloaded_jobs_folder: Path to folder containing downloaded job CSV files
-        output_file: Optional output file path. If not provided, uses default name.
+        output_file: Optional output file path. Defaults to "merged_grading_jobs.csv"
+                    in the parent directory of the input folder.
         
     Returns:
-        Path to the merged CSV file
+        str: Path to the merged CSV file
+        
+    Conflict Resolution:
+        When multiple graders have graded the same student/problem/subquestion:
+        1. Shows all graders' scores and feedback
+        2. Prompts user to choose which grader's work to keep
+        3. Preserves the chosen grader's entire row of data
+        
+    Output Format:
+        The merged file includes all columns from the input files plus:
+        - grader_id: Extracted from the filename prefix
+        - source_file: Original filename for traceability
+        
+    Example:
+        Input files: ta1_Job_1.csv, ta2_Job_2.csv with overlapping items
+        Output: merged_grading_jobs.csv with conflicts resolved
+        
+    Note:
+        - Conflicts are identified by (student_id, problem, subquestion) tuples
+        - All grading data (scores, feedback, flags) is preserved for chosen rows
+        - User interaction is required for conflict resolution
     """
     downloaded_jobs_folder = Path(downloaded_jobs_folder)
     validate_directory(downloaded_jobs_folder, "Downloaded jobs folder")

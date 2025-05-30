@@ -1,4 +1,10 @@
-"""Download jobs from the prprpr API and save them as CSV files."""
+"""Download jobs from the prprpr API and save them as CSV files.
+
+This module retrieves completed grading jobs from the prprpr service,
+de-anonymizes student IDs, and saves the results as CSV files. It handles
+the reverse transformation from the upload process, converting data back
+to the original format.
+"""
 import requests
 import pandas as pd
 from pathlib import Path
@@ -12,11 +18,19 @@ from .common.anonymization import StudentAnonymizer
 
 
 def fetch_all_jobs(headers: dict[str, str]) -> List[Dict[str, Any]]:
-    """
-    Fetch all jobs from the prprpr API.
+    """Fetch all jobs from the prprpr API.
+    
+    This function retrieves the list of all grading jobs available
+    on the prprpr service for the authenticated user.
+    
+    Args:
+        headers: HTTP headers including Authorization token
     
     Returns:
-        List of job dictionaries
+        List of job dictionaries containing job metadata
+        
+    Raises:
+        requests.HTTPError: If API request fails
     """
     endpoint = f"{PRPRPR_BASE_URL}/api/jobs/"
     
@@ -27,11 +41,20 @@ def fetch_all_jobs(headers: dict[str, str]) -> List[Dict[str, Any]]:
 
 
 def fetch_job_items(headers: dict[str, str], job_id: str) -> List[Dict[str, Any]]:
-    """
-    Fetch all items for a specific job.
+    """Fetch all grading items for a specific job.
+    
+    This function retrieves the detailed grading data for a single job,
+    including all problems, scores, and feedback.
+    
+    Args:
+        headers: HTTP headers including Authorization token
+        job_id: Unique identifier for the job
     
     Returns:
-        List of job item dictionaries
+        List of job item dictionaries with grading details
+        
+    Raises:
+        requests.HTTPError: If API request fails
     """
     endpoint = f"{PRPRPR_BASE_URL}/api/jobs/{job_id}/"
     
@@ -42,13 +65,26 @@ def fetch_job_items(headers: dict[str, str], job_id: str) -> List[Dict[str, Any]
 
 
 def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path, anonymizer: StudentAnonymizer) -> None:
-    """
-    Convert list of job items to CSV file with de-anonymization.
+    """Convert list of job items to CSV file with de-anonymization.
+    
+    This function transforms the API response data back to the CSV format,
+    including de-anonymization of student IDs and conversion of subquestion
+    numbers back to Roman numerals.
     
     Args:
-        items: List of job items
-        csv_path: Path to save CSV file
+        items: List of job item dictionaries from API
+        csv_path: Path to save the output CSV file
         anonymizer: StudentAnonymizer for de-anonymizing student IDs (required)
+        
+    Data Transformations:
+        - student_id: De-anonymized from anonymous IDs
+        - subquestion: Converted from integers to Roman numerals
+        - adjusted_score: null/None converted to empty string (0 preserved)
+        - Column ordering: Maintains consistent order for readability
+        
+    Raises:
+        RuntimeError: If anonymizer is not provided
+        ValueError: If de-anonymization fails for any student ID
     """
     if not items:
         print(f"  Warning: No items found for job, skipping CSV creation")
@@ -96,12 +132,33 @@ def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path, anonymizer: St
 
 
 def download_jobs_from_prprpr(output_folder_path: str, students_csv_path: str = None) -> None:
-    """
-    Download jobs from prprpr API and save as CSV files with de-anonymization.
+    """Download jobs from prprpr API and save as CSV files with de-anonymization.
+    
+    This is the main function that retrieves all grading jobs from the prprpr
+    service and saves them as CSV files. It handles authentication, de-anonymization
+    of student IDs, and data format conversion.
     
     Args:
         output_folder_path: Path to folder where CSV files will be saved
-        students_csv_path: Optional path to students CSV for de-anonymization
+        students_csv_path: Path to students CSV for de-anonymization (required)
+        
+    Output Files:
+        Creates CSV files named: {assignee}_{job_name}.csv
+        Example: ta1_Job_1.csv
+        
+    Environment:
+        - Debug mode: Downloads from localhost without confirmation
+        - Production mode: Prompts for confirmation before download
+        
+    Raises:
+        ValueError: If students_csv_path not provided
+        RuntimeError: If any jobs fail to download or de-anonymize
+        requests.HTTPError: If API requests fail
+        
+    Note:
+        - De-anonymization is mandatory for all downloads
+        - Failed downloads are reported but don't stop the batch
+        - Progress is displayed during download
     """
     output_folder = Path(output_folder_path)
     

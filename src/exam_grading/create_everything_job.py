@@ -1,4 +1,14 @@
-"""Create everything_job.csv that combines bubble sheet data with student answers."""
+"""Create everything_job.csv that combines bubble sheet data with student answers.
+
+This module generates the master grading job CSV file that combines:
+1. Student answers from OMR processing
+2. Bubble position data to determine page numbers
+3. Question database information for scoring
+4. All metadata needed for the grading service
+
+The output is a long-format CSV with one row per student/problem/subquestion
+combination, ready to be split and uploaded to the grading service.
+"""
 import json
 import pandas as pd
 from pathlib import Path
@@ -13,46 +23,69 @@ from .common.validators import validate_csv_file
 
 
 def path_relative_to(source: Path, path: Path) -> Path:
-    """Returns the path `path` relative to a source path.
+    """Convert a relative path to be relative to a source path.
+    
+    This utility function resolves relative paths in the question database
+    to absolute paths based on the database location.
 
-    For example, if path is `./folder/file.txt` and we want it relative to `~/folder2`, then this function would return
-    the path `~/folder2/folder/file.txt`.
+    For example, if path is `./problems/problem1.tex` and source is 
+    `/home/user/exam/questiondb.json`, this returns 
+    `/home/user/exam/problems/problem1.tex`.
 
     Args:
-        source: The base path.
-        path: The relative path that will be converted to be relative to the source path.
+        source: The base path (typically the questiondb.json location)
+        path: The relative path to resolve
 
     Returns:
-        The path relative to the source path.
+        Path: Absolute path resolved relative to the source
     """
     if source.is_file():
+        # If source is a file, use its parent directory as base
         return (source.parent / path).resolve()
     else:
+        # If source is a directory, use it directly as base
         return (source / path).resolve()
     
 
 def load_questiondb(questiondb_path: Path) -> list[Problem]:
-    """
-    Load QuestionDB and parse all problems.
+    """Load QuestionDB and parse all problems from LaTeX sources.
+    
+    This function reads the question database JSON file and parses the
+    LaTeX source for each problem to extract metadata like answer values
+    and default scores.
     
     Args:
-        questiondb_path: Path to questiondb.json file
+        questiondb_path: Path to questiondb.json file containing problem mappings
         
     Returns:
-        Dictionary mapping problem names to Problem objects
+        List of Problem objects with parsed metadata
+        
+    Note:
+        The questiondb.json format is:
+        [
+            {
+                "name": "Problem 1",
+                "path": "./problems/problem1.tex",
+                "metadata": {...}
+            },
+            ...
+        ]
     """
-    
     if not questiondb_path.exists():
         print(f"Warning: QuestionDB not found at {questiondb_path}")
         return []
     
     try:
+        # Use TypeAdapter for Pydantic v2 JSON parsing
         ta = TypeAdapter(QuestionDB)
         questiondb = ta.validate_json(questiondb_path.read_bytes())
 
         problems = []
         for mapping in questiondb:
+            # Resolve relative problem paths
             problem_path = path_relative_to(questiondb_path.parent, Path(mapping.path))
+            
+            # Parse LaTeX to extract problem structure
             soup = TexSoup(problem_path.read_text())
             problem = Problem.from_latex(soup)
             problems.append(problem)
@@ -63,41 +96,69 @@ def load_questiondb(questiondb_path: Path) -> list[Problem]:
 
 
 def calculate_suggested_score(subquestion: Subquestion, student_answer: str) -> Optional[float]:
-    """
-    Calculate suggested score based on student answer and problem definition.
+    """Calculate suggested score based on student answer and problem definition.
+    
+    This function matches the student's answer against the defined answer values
+    in the problem database and returns the default score if available. It checks
+    both the answer name (e.g., "a", "b") and point value (e.g., "\\pi", "2").
+    
     Args:
-        subquestion: Subquestion object containing answer values
-        student_answer: Student's answer
-
+        subquestion: Subquestion object containing answer values with default scores
+        student_answer: Student's answer string from OMR
+        
     Returns:
-        Suggested score or None if cannot be determined
+        Optional[float]: Default score for the answer, or None if no match found
+        
+    Example:
+        If subquestion has answer_values:
+        - name="a", point="\\pi", default_score=1.0
+        - name="b", point="2\\pi", default_score=0.5
+        
+        And student_answer="a", returns 1.0
     """
-
-
+    # Check each defined answer value for the subquestion
     for answer_value in subquestion.answer_values:
+        # Match by answer name (e.g., "a", "b", "c")
         if answer_value.name == student_answer:
             if answer_value.default_score is not None:
                 return answer_value.default_score
         
+        # Also match by point value (e.g., mathematical expressions)
         if answer_value.point == student_answer:
             if answer_value.default_score is not None:
                 return answer_value.default_score
 
+    # No match found
     return None
 
 
 def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: str, questiondb_path: str, output_path: str) -> str:
-    """
-    Create everything_job.csv with all student/problem/subquestion combinations.
+    """Create everything_job.csv with all student/problem/subquestion combinations.
+    
+    This is the main function that combines all data sources to create the master
+    grading job file. It transforms the wide-format answer data into long format,
+    adds page numbers from bubble positions, and calculates suggested scores from
+    the question database.
     
     Args:
-        bubbles_csv_path: Path to bubbles.csv file
-        consolidated_answers_csv_path: Path to consolidated answers CSV file
-        questiondb_path: Optional path to questiondb.json file. If not provided, will search in parent directories.
-        output_path: Optional path for the output CSV file. If not provided, uses default location.
+        bubbles_csv_path: Path to bubbles.csv file with bubble position definitions
+        consolidated_answers_csv_path: Path to consolidated answers from OMR (wide format)
+        questiondb_path: Path to questiondb.json file with problem definitions
+        output_path: Path for the output everything_job.csv file
         
     Returns:
-        Path to the created everything_job.csv file
+        str: Path to the created everything_job.csv file
+        
+    Output CSV format:
+        student_id,problem,subquestion,answer,page_numbers,suggested_score,job_number
+        abc123,1,i,a,"0,1",1.0,
+        abc123,1,ii,b,"0,1",0.5,
+        ...
+        
+    Note:
+        - page_numbers includes both the problem statement page and subquestion page
+        - suggested_score is populated from the question database if available
+        - job_number is left blank for later assignment during job splitting
     """
     bubbles_path = Path(bubbles_csv_path)
     answers_path = Path(consolidated_answers_csv_path)
@@ -136,12 +197,18 @@ def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: 
     # Add page numbers from bubble_map
     # For each subquestion, include both its own page and the root problem page (first subquestion)
     def get_page_numbers(row):
+        """Get comma-separated page numbers for a question/subquestion.
+        
+        Returns both the problem statement page (subquestion 'i' minus 1) and
+        the actual subquestion page. This allows graders to see the full context.
+        """
         pages = []
         
         # Get the page for the current subquestion
         current_page = bubble_map.get((row['problem'], row['subquestion']), None)
         
-        # Also get the problem statement page
+        # Also get the problem statement page (typically where subquestion 'i' is)
+        # We subtract 1 because the problem statement is usually on the previous page
         problem_statement_page = bubble_map.get((row['problem'], 'i'), None)
         if problem_statement_page and str(problem_statement_page - 1) not in pages:
             pages.append(str(problem_statement_page - 1))
