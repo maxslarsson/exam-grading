@@ -46,8 +46,6 @@ def upload_pdfs_to_aws(parsed_folder_path: str, students_csv_path: str = None) -
             
             object_name = f"grading/student_work/{filename}"
             s3.upload_file(str(pdf_path), AWS_BUCKET_NAME, object_name)
-            if filename != pdf_path.name:
-                print(f"  Uploaded {pdf_path.name} as {filename}")
             successful += 1
         except ValueError as e:
             print(f"\n  ✗ Anonymization error for {pdf_path.name}: {e}")

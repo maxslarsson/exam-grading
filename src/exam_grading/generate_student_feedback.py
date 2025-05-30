@@ -15,18 +15,19 @@ from .common.validators import validate_csv_file, validate_file
 COURSE_NAME = "Test Course"
 
 
-def get_problem_page_numbers(problem_name: str, student_id: str, df_merged_jobs: pd.DataFrame) -> List[int]:
-    """Extract page numbers for a specific problem from merged grading jobs.
+def get_subquestion_page_numbers(problem_name: str, subquestion_name: str, student_id: str, df_merged_jobs: pd.DataFrame) -> List[int]:
+    """Extract page numbers for a specific subquestion from merged grading jobs.
     
     Args:
         problem_name: The name/identifier of the problem (e.g., "1", "2", etc.)
+        subquestion_name: The name/identifier of the subquestion (e.g., "i", "ii", etc.)
         student_id: The student's ID
         df_merged_jobs: DataFrame containing grading jobs with page_numbers column
         
     Returns:
-        List of page numbers (1-indexed) for this problem
+        List of page numbers (1-indexed) for this subquestion
     """
-    # Filter for this student and problem (convert problem_name to int for comparison)
+    # Filter for this student, problem, and subquestion
     try:
         problem_int = int(problem_name)
     except ValueError:
@@ -34,13 +35,14 @@ def get_problem_page_numbers(problem_name: str, student_id: str, df_merged_jobs:
     
     student_jobs = df_merged_jobs[
         (df_merged_jobs['student_id'] == student_id) & 
-        (df_merged_jobs['problem'] == problem_int)
+        (df_merged_jobs['problem'] == problem_int) &
+        (df_merged_jobs['subquestion'] == subquestion_name)
     ]
     
     if student_jobs.empty:
         return []
     
-    # Get all unique page_numbers values for this problem
+    # Get all unique page_numbers values for this subquestion
     page_numbers_set = set()
     for _, row in student_jobs.iterrows():
         page_numbers_str = str(row['page_numbers']).strip()
@@ -132,7 +134,7 @@ def create_scan_mapping_for_student(
         annotated_pdfs_dir: Directory containing annotated PDFs
         
     Returns:
-        Dictionary mapping problem identifiers to scan file patterns, or None if no PDFs directory
+        Dictionary mapping subquestion identifiers (e.g., "1.i", "2.ii") to scan file patterns, or None if no PDFs directory
     """
     if annotated_pdfs_dir is None:
         return None
@@ -140,17 +142,23 @@ def create_scan_mapping_for_student(
     scan_mapping = {}
     grader_id = get_student_grader_id(student_id, df_merged_jobs)
     
-    # For each problem/question
-    for i, question in enumerate(questiondb):
-        problem_name = str(i + 1)
-        page_numbers = get_problem_page_numbers(problem_name, student_id, df_merged_jobs)
+    # Get all unique problem.subquestion combinations for this student
+    student_jobs = df_merged_jobs[df_merged_jobs['student_id'] == student_id]
+    
+    for _, row in student_jobs.iterrows():
+        problem_name = str(row['problem'])
+        subquestion_name = str(row['subquestion'])
+        subquestion_key = f"{problem_name}.{subquestion_name}"
+        
+        # Get page numbers for this specific subquestion
+        page_numbers = get_subquestion_page_numbers(problem_name, subquestion_name, student_id, df_merged_jobs)
         
         if page_numbers:
             pdf_files = find_annotated_pdf_pages(student_id, page_numbers, grader_id, annotated_pdfs_dir)
             if pdf_files:
                 # Convert PDF paths to relative paths that can be used as scan patterns
                 scan_patterns = [str(pdf_file) for pdf_file in pdf_files]
-                scan_mapping[problem_name] = scan_patterns
+                scan_mapping[subquestion_key] = scan_patterns
     
     return scan_mapping if scan_mapping else None
 

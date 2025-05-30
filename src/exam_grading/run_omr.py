@@ -121,7 +121,7 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
                 
                 # Process additional files (no OMR, just crop and add)
                 for additional_file in file_list[1:]:
-                    print(f"Adding additional page: {additional_file}")
+                    # print(f"Adding additional page: {additional_file}")
                     additional_image = cv2.imread(str(additional_file), cv2.IMREAD_GRAYSCALE)
                     if additional_image is not None:
                         # Convert to BGR for consistency
@@ -144,7 +144,7 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
         
         csv_path = page_dir / f"{page}_OMR.csv"
         results_df.to_csv(csv_path, index_label="student_id")
-        print(f"Saved per-page results to: {csv_path}")
+        # print(f"Saved per-page results to: {csv_path}")
         
         # Save overlay PDFs for this page (with all pages concatenated)
         for student_id, pages in overlay_images.items():
@@ -153,10 +153,10 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
             # Save as multi-page PDF
             if len(pages) > 1:
                 pages[0].save(pdf_path, "PDF", resolution=100.0, save_all=True, append_images=pages[1:])
-                print(f"Saved multi-page overlay PDF: {pdf_path} ({len(pages)} pages)")
+                # print(f"Saved multi-page overlay PDF: {pdf_path} ({len(pages)} pages)")
             else:
                 pages[0].save(pdf_path, "PDF", resolution=100.0)
-                print(f"Saved overlay PDF: {pdf_path}")
+                # print(f"Saved overlay PDF: {pdf_path}")
     
     # Process subdirectories recursively
     for subdir in subdirs:
@@ -166,7 +166,7 @@ def process_directory(directory, omr_marker, df_bubbles, output_dir, all_student
 def process_single_image(image_path, omr_marker, df_bubbles, results_df, all_student_answers):
     """Process a single image and detect marked bubbles"""
     image_path = Path(image_path)
-    print(f"Processing: {image_path}")
+    # print(f"Processing: {image_path}")
     
     # Extract student ID from filename
     student_id = image_path.stem.split("_")[0]
@@ -224,10 +224,10 @@ def process_single_image(image_path, omr_marker, df_bubbles, results_df, all_stu
         
         if values_for_threshold:
             threshold = calculate_threshold(values_for_threshold)
-            print(f"Threshold: {threshold:.2f}")
+            # print(f"Threshold: {threshold:.2f}")
         else:
             threshold = GLOBAL_THRESHOLD
-            print(f"Using global threshold: {threshold}")
+            # print(f"Using global threshold: {threshold}")
         
         # Create overlay with colored boxes based on marking status
         overlay = create_overlay_with_marks(image, bubble_values, bubble_positions, threshold)
@@ -392,7 +392,7 @@ def align_image_with_markers(image, marker_template, dpi):
         center_y = y1 + max_loc[1] + marker.shape[0] // 2
         marker_centers.append([center_x, center_y])
         
-        print(f"Marker {i+1}: ({center_x}, {center_y}) with confidence {confidence:.3f}")
+        # print(f"Marker {i+1}: ({center_x}, {center_y}) with confidence {confidence:.3f}")
     
     # Convert to numpy array
     marker_centers = np.array(marker_centers, dtype=np.float32)

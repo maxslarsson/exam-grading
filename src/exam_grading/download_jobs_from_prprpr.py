@@ -73,6 +73,12 @@ def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path, anonymizer: St
     if 'subquestion' in df.columns:
         df['subquestion'] = df['subquestion'].apply(lambda x: convert_int_to_roman(int(x)))
     
+    # Handle adjusted_score: convert null/None to empty string, keep 0 as 0
+    if 'adjusted_score' in df.columns:
+        df['adjusted_score'] = df['adjusted_score'].apply(
+            lambda x: '' if pd.isna(x) or x is None else x
+        )
+    
     # Order columns with required first, then optional
     column_order = [
         'student_id', 'problem', 'subquestion',
@@ -117,13 +123,11 @@ def download_jobs_from_prprpr(output_folder_path: str, students_csv_path: str = 
     
     try:
         anonymizer = StudentAnonymizer(students_csv_path)
-        print(f"Loaded de-anonymization mappings from {students_csv_path}")
     except Exception as e:
         raise RuntimeError(f"Failed to load de-anonymization mappings: {e}")
     
     try:
         # Fetch all jobs
-        print("Fetching jobs list...")
         jobs = fetch_all_jobs(headers)
         print(f"Found {len(jobs)} jobs")
         

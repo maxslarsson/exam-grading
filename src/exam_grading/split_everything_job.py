@@ -65,7 +65,7 @@ def split_everything_job(everything_job_csv: str, csv_jobs_folder: str) -> list[
         job_df_output.to_csv(job_file_path, index=False)
         created_files.append(str(job_file_path))
         
-        print(f"  Created {job_filename} with {len(job_df)} rows")
+        # print(f"  Created {job_filename} with {len(job_df)} rows")
     
     progress.done()
     
