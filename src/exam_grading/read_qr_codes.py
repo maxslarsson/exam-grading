@@ -1,5 +1,6 @@
 """Read QR codes from scanned images and organize them by page."""
 import re
+import shutil
 from pathlib import Path
 import cv2
 from qreader import QReader
@@ -33,7 +34,7 @@ def read_qr_codes_and_move(exam_scans_folder_path: str) -> str:
     output_folder_path = exam_scans_folder_path.parent / (exam_scans_folder_path.name + "_parsed")
 
     if output_folder_path.exists():
-        output_folder_path.rmdir()  # Remove existing output folder if it exists
+        shutil.rmtree(output_folder_path)  # Remove existing output folder if it exists
 
     qreader = QReader()
     files = list(exam_scans_folder_path.glob("**/*.jpeg"))

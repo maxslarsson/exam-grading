@@ -17,6 +17,7 @@ dependencies = [
     "google-api-python-client (>=2.152.0,<3.0.0)",
     "google-auth-oauthlib (>=1.2.1,<2.0.0)",
     "fuf-service @ git+ssh://git@github.com/maxslarsson/fuf-service.git",
+    "fuf @ git+ssh://git@github.com/maxslarsson/fuf.git",
 ]
 
 [project.scripts]

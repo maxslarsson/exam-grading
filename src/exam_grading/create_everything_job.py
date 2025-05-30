@@ -86,7 +86,7 @@ def calculate_suggested_score(subquestion: Subquestion, student_answer: str) -> 
     return None
 
 
-def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: str, questiondb_path: str) -> str:
+def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: str, questiondb_path: str, output_path: str) -> str:
     """
     Create everything_job.csv with all student/problem/subquestion combinations.
     
@@ -94,6 +94,7 @@ def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: 
         bubbles_csv_path: Path to bubbles.csv file
         consolidated_answers_csv_path: Path to consolidated answers CSV file
         questiondb_path: Optional path to questiondb.json file. If not provided, will search in parent directories.
+        output_path: Optional path for the output CSV file. If not provided, uses default location.
         
     Returns:
         Path to the created everything_job.csv file
@@ -105,12 +106,11 @@ def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: 
     validate_csv_file(bubbles_path, "Bubbles CSV file")
     validate_csv_file(answers_path, "Consolidated answers CSV file")
     
-    # Define paths
-    output_dir = bubbles_path.parent / 'csv_jobs'
-    output_path = output_dir / 'everything_job.csv'
+    output_path = Path(output_path)
+    output_dir = output_path.parent
     
     # Create output directory if it doesn't exist
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     # Read bubbles.csv and create mapping
     bubbles_df = pd.read_csv(bubbles_path)
@@ -200,6 +200,9 @@ def create_everything_job(bubbles_csv_path: str, consolidated_answers_csv_path: 
             print(f"Calculated {suggested_count} suggested scores")
     else:
         print(f"QuestionDB path not found or not a file: {qdb_path}")
+
+    # Add blank "job_number" column at the end
+    output_df['job_number'] = ''
 
     # Write to CSV
     output_df.to_csv(output_path, index=False)

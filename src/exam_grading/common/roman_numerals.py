@@ -37,3 +37,42 @@ def convert_roman_to_int(roman: str) -> int:
             raise ValueError(f"Invalid Roman numeral character: {roman[i]}")
     
     return int_value
+
+
+def convert_int_to_roman(num: int) -> str:
+    """
+    Convert an integer to a Roman numeral.
+    
+    Args:
+        num (int): Integer value to convert.
+        
+    Returns:
+        str: Roman numeral representation of the integer.
+    """
+    if not isinstance(num, int) or num <= 0:
+        raise ValueError("Input must be a positive integer")
+    
+    roman_numerals = [
+        ("M", 1000),
+        ("CM", 900),
+        ("D", 500),
+        ("CD", 400),
+        ("C", 100),
+        ("XC", 90),
+        ("L", 50),
+        ("XL", 40),
+        ("X", 10),
+        ("IX", 9),
+        ("V", 5),
+        ("IV", 4),
+        ("I", 1)
+    ]
+    
+    result = []
+    
+    for roman, value in roman_numerals:
+        while num >= value:
+            result.append(roman)
+            num -= value
+    
+    return ''.join(result).lower()

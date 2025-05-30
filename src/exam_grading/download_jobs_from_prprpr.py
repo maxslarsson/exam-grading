@@ -7,6 +7,8 @@ from typing import Dict, List, Any
 from .common.auth import get_prprpr_access_token
 from .common.progress import ProgressPrinter
 from .common.config import PRPRPR_DEBUG, PRPRPR_BASE_URL
+from .common.roman_numerals import convert_int_to_roman
+from .common.anonymization import StudentAnonymizer
 
 
 def fetch_all_jobs(headers: dict[str, str]) -> List[Dict[str, Any]]:
@@ -39,9 +41,14 @@ def fetch_job_items(headers: dict[str, str], job_id: str) -> List[Dict[str, Any]
     return response.json()["job"]["items"]
 
 
-def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path) -> None:
+def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path, anonymizer: StudentAnonymizer) -> None:
     """
-    Convert list of job items to CSV file.
+    Convert list of job items to CSV file with de-anonymization.
+    
+    Args:
+        items: List of job items
+        csv_path: Path to save CSV file
+        anonymizer: StudentAnonymizer for de-anonymizing student IDs (required)
     """
     if not items:
         print(f"  Warning: No items found for job, skipping CSV creation")
@@ -55,6 +62,16 @@ def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path) -> None:
     for col in required_cols:
         if col not in df.columns:
             df[col] = ''
+    
+    # De-anonymize student IDs (required)
+    if not anonymizer:
+        raise RuntimeError("Anonymizer is required for de-anonymization but not available")
+    if 'student_id' in df.columns:
+        df['student_id'] = df['student_id'].apply(lambda x: anonymizer.deanonymize(str(x)))
+    
+    # Convert integer subquestion values to Roman numerals
+    if 'subquestion' in df.columns:
+        df['subquestion'] = df['subquestion'].apply(lambda x: convert_int_to_roman(int(x)))
     
     # Order columns with required first, then optional
     column_order = [
@@ -72,12 +89,13 @@ def job_items_to_csv(items: List[Dict[str, Any]], csv_path: Path) -> None:
     df[columns_to_write].to_csv(csv_path, index=False)
 
 
-def download_jobs_from_prprpr(output_folder_path: str) -> None:
+def download_jobs_from_prprpr(output_folder_path: str, students_csv_path: str = None) -> None:
     """
-    Download jobs from prprpr API and save as CSV files.
+    Download jobs from prprpr API and save as CSV files with de-anonymization.
     
     Args:
         output_folder_path: Path to folder where CSV files will be saved
+        students_csv_path: Optional path to students CSV for de-anonymization
     """
     output_folder = Path(output_folder_path)
     
@@ -92,6 +110,16 @@ def download_jobs_from_prprpr(output_folder_path: str) -> None:
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
+    
+    # Initialize anonymizer (required for de-anonymization)
+    if not students_csv_path:
+        raise ValueError("students_csv_path is required for de-anonymization")
+    
+    try:
+        anonymizer = StudentAnonymizer(students_csv_path)
+        print(f"Loaded de-anonymization mappings from {students_csv_path}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load de-anonymization mappings: {e}")
     
     try:
         # Fetch all jobs
@@ -124,8 +152,8 @@ def download_jobs_from_prprpr(output_folder_path: str) -> None:
                 # Fetch job items
                 items = fetch_job_items(headers, job_id)
                 
-                # Save to CSV
-                job_items_to_csv(items, csv_path)
+                # Save to CSV with optional de-anonymization
+                job_items_to_csv(items, csv_path, anonymizer)
                 
                 successful += 1
                 

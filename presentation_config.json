@@ -1,0 +1,21 @@
+{
+  "paths": {
+    "omr_marker": "omr_marker.jpg",
+    "bubbles_csv": "bubbles.csv",
+    "questiondb": "questiondb.json",
+    "students_csv": "students.csv",
+    
+    "scans_folder": "testing_night_before_2/scans",
+    "parsed_folder": "testing_night_before_2/scans_parsed",
+    "parsed_omr_folder": "testing_night_before_2/scans_parsed_OMR",
+    "consolidated_answers_csv": "testing_night_before_2/scans_parsed_OMR/consolidated_answers.csv",
+    
+    "everything_job_csv": "testing_night_before_2/everything_job.csv",
+    "csv_jobs_folder": "testing_night_before_2/csv_jobs",
+    "downloaded_jobs_folder": "testing_night_before_2/downloaded_jobs",
+    "merged_grading_jobs_csv": "testing_night_before_2/merged_grading_jobs.csv",
+    
+    "annotated_pdfs_folder": "testing_night_before_2/annotated_pdfs",
+    "student_feedback_folder": "testing_night_before_2/student_feedback"
+  }
+}

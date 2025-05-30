@@ -9,11 +9,16 @@ from .common.validators import validate_directory
 from .common.progress import ProgressPrinter
 from .common.config import PRPRPR_DEBUG, PRPRPR_BASE_URL
 from .common.roman_numerals import convert_roman_to_int
+from .common.anonymization import StudentAnonymizer
 
 
-def csv_to_job_items(csv_path: Path) -> List[Dict[str, Any]]:
+def csv_to_job_items(csv_path: Path, anonymizer: StudentAnonymizer = None) -> List[Dict[str, Any]]:
     """
-    Convert CSV file to list of job items.
+    Convert CSV file to list of job items with optional anonymization.
+    
+    Args:
+        csv_path: Path to CSV file
+        anonymizer: Optional StudentAnonymizer for anonymizing student IDs
     
     Returns:
         List of job item dictionaries
@@ -42,8 +47,14 @@ def csv_to_job_items(csv_path: Path) -> List[Dict[str, Any]]:
         elif subquestion < 1:
             raise ValueError(f"Subquestion must be a positive integer in row {idx + 1}, got {subquestion}")
 
+        # Anonymize student ID (required)
+        student_id = str(row['student_id'])
+        if not anonymizer:
+            raise RuntimeError("Anonymizer is required but not available")
+        student_id = anonymizer.anonymize(student_id)
+        
         item = {
-            'student_id': str(row['student_id']),
+            'student_id': student_id,
             'problem': int(row['problem']),
             'subquestion': subquestion,
         }
@@ -98,12 +109,13 @@ def upload_job(headers: dict[str, str], job_name: str, assignee: str, items: Lis
     return response.json()
 
 
-def upload_jobs_to_prprpr(csv_folder_path: str) -> None:
+def upload_jobs_to_prprpr(csv_folder_path: str, students_csv_path: str = None) -> None:
     """
-    Upload job CSVs to the prprpr API.
+    Upload job CSVs to the prprpr API with optional anonymization.
     
     Args:
         csv_folder_path: Path to folder containing CSV files
+        students_csv_path: Optional path to students CSV for anonymization
     """
     csv_folder = Path(csv_folder_path)
     validate_directory(csv_folder, "CSV folder")
@@ -116,6 +128,16 @@ def upload_jobs_to_prprpr(csv_folder_path: str) -> None:
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
+    
+    # Initialize anonymizer (required)
+    if not students_csv_path:
+        raise ValueError("students_csv_path is required for anonymization")
+    
+    try:
+        anonymizer = StudentAnonymizer(students_csv_path)
+        print(f"Loaded anonymization mappings from {students_csv_path}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load anonymization mappings: {e}")
     
     # Find all CSV files
     csv_files = list(csv_folder.glob('**/*.csv'))
@@ -142,8 +164,8 @@ def upload_jobs_to_prprpr(csv_folder_path: str) -> None:
 
             job_name = job_name.replace('_', ' ')  # Replace underscores with spaces
             
-            # Convert CSV to job items
-            items = csv_to_job_items(csv_file)
+            # Convert CSV to job items with optional anonymization
+            items = csv_to_job_items(csv_file, anonymizer)
 
             # Upload to API
             upload_job(headers, job_name, assignee, items)
